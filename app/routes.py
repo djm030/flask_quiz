@@ -5,7 +5,8 @@ from flask import (
     Blueprint,
     redirect,
     url_for,
-    flash
+    flash,
+    session
 )
 from werkzeug.security import check_password_hash
 from .models import Question, Participant, Quiz , Admin
@@ -89,14 +90,15 @@ def submit():
         }
     )
 
-
 @main.route("/questions")
 def get_questions():
-    questions = Question.query.all()
+    # is_active가 True인 질문만 선택하고, order_num에 따라 정렬
+    questions = Question.query.filter(Question.is_active == True).order_by(Question.order_num).all()
     questions_list = [
-        {"id": question.id, "content": question.content} for question in questions
+        {"id": question.id, "content": question.content, "order_num": question.order_num} for question in questions
     ]
     return jsonify(questions=questions_list)
+
 
 
 @main.route("/results")
@@ -240,14 +242,32 @@ def login():
         admin = Admin.query.filter_by(username=username).first()
         
         if admin and check_password_hash(admin.password, password):
-            # 로그인 성공 시 처리
+            session['admin_logged_in'] = True
             return redirect(url_for('admin.dashboard'))
         else:
             flash('Invalid username or password')
     
     return render_template('admin.html')
 
+
+@admin.route('/logout')
+def logout():
+    session.pop('admin_logged_in', None)
+    return redirect(url_for('admin.login'))
+
+
+from functools import wraps
+from flask import redirect, url_for, session
+
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'admin_logged_in' not in session:
+            return redirect(url_for('admin.login', next=request.url))
+        return f(*args, **kwargs)
+    return decorated_function
 @admin.route('dashboard')
+@login_required
 def dashboard():
     # 날짜별 참가자 수를 계산
     participant_counts = db.session.query(
@@ -277,14 +297,17 @@ def dashboard():
 
 
 @admin.route('/dashboard/question', methods=['GET', 'POST'])
+@login_required
 def manage_questions():
     if request.method == 'POST':
-        # 새 질문 추가 또는 기존 질문 수정 로직
         if 'new_question' in request.form:
             # 새 질문 추가
-            new_question = Question(content=request.form['content'],
-                                    order_num=request.form['order_num'],
-                                    is_active=request.form['is_active'] == 'on')
+            is_active = 'is_active' in request.form and request.form['is_active'] == 'on'
+            new_question = Question(
+                content=request.form['content'],
+                order_num=request.form['order_num'],
+                is_active=is_active
+            )
             db.session.add(new_question)
             db.session.commit()
         else:
@@ -292,16 +315,18 @@ def manage_questions():
             question_id = request.form['question_id']
             question = Question.query.get(question_id)
             if question:
+                is_active = 'is_active' in request.form and request.form['is_active'] == 'on'
                 question.content = request.form['content']
                 question.order_num = request.form['order_num']
-                question.is_active = request.form['is_active'] == 'on'
+                question.is_active = is_active
                 db.session.commit()
 
-    questions = Question.query.all()
+    questions = Question.query.order_by(Question.order_num).all()
     return render_template('manage_questions.html', questions=questions)
 
 
 @admin.route('/dashboard/list')
+@login_required
 def quiz_list():
     quizzes = Quiz.query.all()
     return render_template('quiz_list.html', quizzes=quizzes)
