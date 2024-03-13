@@ -6,10 +6,10 @@ from flask import (
     redirect,
     url_for,
     flash,
-    session
+    session,
 )
 from werkzeug.security import check_password_hash
-from .models import Question, Participant, Quiz , Admin
+from .models import Question, Participant, Quiz, Admin
 from .database import db
 import plotly.express as px
 import pandas as pd
@@ -21,7 +21,7 @@ from plotly.offline import plot
 
 # 'main'이라는 이름의 Blueprint 객체 생성
 main = Blueprint("main", __name__)
-admin = Blueprint('admin', __name__,url_prefix='/admin/')
+admin = Blueprint("admin", __name__, url_prefix="/admin/")
 
 
 @main.route("/", methods=["GET"])
@@ -90,15 +90,24 @@ def submit():
         }
     )
 
+
 @main.route("/questions")
 def get_questions():
     # is_active가 True인 질문만 선택하고, order_num에 따라 정렬
-    questions = Question.query.filter(Question.is_active == True).order_by(Question.order_num).all()
+    questions = (
+        Question.query.filter(Question.is_active == True)
+        .order_by(Question.order_num)
+        .all()
+    )
     questions_list = [
-        {"id": question.id, "content": question.content, "order_num": question.order_num} for question in questions
+        {
+            "id": question.id,
+            "content": question.content,
+            "order_num": question.order_num,
+        }
+        for question in questions
     ]
     return jsonify(questions=questions_list)
-
 
 
 @main.route("/results")
@@ -233,100 +242,107 @@ def show_results():
     return render_template("results.html", graphs_json=graphs_json)
 
 
-@admin.route('', methods=['GET', 'POST'])
+@admin.route("", methods=["GET", "POST"])
 def login():
-    if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
-        
+    if request.method == "POST":
+        username = request.form["username"]
+        password = request.form["password"]
+
         admin = Admin.query.filter_by(username=username).first()
-        
+
         if admin and check_password_hash(admin.password, password):
-            session['admin_logged_in'] = True
-            return redirect(url_for('admin.dashboard'))
+            session["admin_logged_in"] = True
+            return redirect(url_for("admin.dashboard"))
         else:
-            flash('Invalid username or password')
-    
-    return render_template('admin.html')
+            flash("Invalid username or password")
+
+    return render_template("admin.html")
 
 
-@admin.route('/logout')
+@admin.route("/logout")
 def logout():
-    session.pop('admin_logged_in', None)
-    return redirect(url_for('admin.login'))
+    session.pop("admin_logged_in", None)
+    return redirect(url_for("admin.login"))
 
 
 from functools import wraps
 from flask import redirect, url_for, session
 
+
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if 'admin_logged_in' not in session:
-            return redirect(url_for('admin.login', next=request.url))
+        if "admin_logged_in" not in session:
+            return redirect(url_for("admin.login", next=request.url))
         return f(*args, **kwargs)
+
     return decorated_function
-@admin.route('dashboard')
+
+
+@admin.route("dashboard")
 @login_required
 def dashboard():
     # 날짜별 참가자 수를 계산
-    participant_counts = db.session.query(
-        func.date(Participant.created_at).label('date'),
-        func.count(Participant.id).label('count')
-    ).group_by('date').all()
+    participant_counts = (
+        db.session.query(
+            func.date(Participant.created_at).label("date"),
+            func.count(Participant.id).label("count"),
+        )
+        .group_by("date")
+        .all()
+    )
 
     # 날짜와 참가자 수를 분리하여 리스트에 저장
     dates = [result.date for result in participant_counts]
     counts = [result.count for result in participant_counts]
 
     # Plotly 그래프 생성
-    graph = go.Figure(
-        go.Scatter(x=dates, y=counts, mode='lines+markers')
-    )
-    
-    graph.update_layout(title='일자별 참가자 수',
-                        xaxis_title='날짜',
-                        yaxis_title='참가자 수')
+    graph = go.Figure(go.Scatter(x=dates, y=counts, mode="lines+markers"))
+
+    graph.update_layout(title="일자별 참가자 수", xaxis_title="날짜", yaxis_title="참가자 수")
 
     # Plotly 그래프를 HTML로 변환
-    graph_div = plot(graph, output_type='div', include_plotlyjs=False)
+    graph_div = plot(graph, output_type="div", include_plotlyjs=False)
 
     # 생성된 HTML을 템플릿으로 전달
-    return render_template('dashboard.html', graph_div=graph_div)
+    return render_template("dashboard.html", graph_div=graph_div)
 
 
-
-@admin.route('/dashboard/question', methods=['GET', 'POST'])
+@admin.route("/dashboard/question", methods=["GET", "POST"])
 @login_required
 def manage_questions():
-    if request.method == 'POST':
-        if 'new_question' in request.form:
+    if request.method == "POST":
+        if "new_question" in request.form:
             # 새 질문 추가
-            is_active = 'is_active' in request.form and request.form['is_active'] == 'on'
+            is_active = (
+                "is_active" in request.form and request.form["is_active"] == "on"
+            )
             new_question = Question(
-                content=request.form['content'],
-                order_num=request.form['order_num'],
-                is_active=is_active
+                content=request.form["content"],
+                order_num=request.form["order_num"],
+                is_active=is_active,
             )
             db.session.add(new_question)
             db.session.commit()
         else:
             # 기존 질문 수정
-            question_id = request.form['question_id']
+            question_id = request.form["question_id"]
             question = Question.query.get(question_id)
             if question:
-                is_active = 'is_active' in request.form and request.form['is_active'] == 'on'
-                question.content = request.form['content']
-                question.order_num = request.form['order_num']
+                is_active = (
+                    "is_active" in request.form and request.form["is_active"] == "on"
+                )
+                question.content = request.form["content"]
+                question.order_num = request.form["order_num"]
                 question.is_active = is_active
                 db.session.commit()
 
     questions = Question.query.order_by(Question.order_num).all()
-    return render_template('manage_questions.html', questions=questions)
+    return render_template("manage_questions.html", questions=questions)
 
 
-@admin.route('/dashboard/list')
+@admin.route("/dashboard/list")
 @login_required
 def quiz_list():
     quizzes = Quiz.query.all()
-    return render_template('quiz_list.html', quizzes=quizzes)
+    return render_template("quiz_list.html", quizzes=quizzes)

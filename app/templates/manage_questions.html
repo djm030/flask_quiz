@@ -5,6 +5,9 @@
     <title>Manage Questions</title>
 </head>
 <body>
+      <a href="{{ url_for('admin.dashboard') }}">
+        <button class="dashboard-button">Back to Dashboard</button>
+    </a>
     <h1>Manage Questions</h1>
     <h2>Add New Question</h2>
     <form action="{{ url_for('admin.manage_questions') }}" method="post">

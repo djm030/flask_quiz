@@ -4,13 +4,14 @@ from flask.cli import with_appcontext
 import os
 import click
 from .database import db
-from .models import Question, Admin ,Participant  # Question 모델 임포트
+from .models import Question, Admin, Participant  # Question 모델 임포트
 from werkzeug.security import generate_password_hash
 from datetime import datetime, timedelta
 
+
 def create_app():
     app = Flask(__name__)
-    app.secret_key = 'oz_coding_secret'
+    app.secret_key = "oz_coding_secret"
 
     # 데이터베이스 파일 경로 설정 및 앱 설정
     basedir = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
@@ -47,14 +48,12 @@ def create_app():
             new_admin = Admin(username="admin", password=hashed_password)
             db.session.add(new_admin)
 
+        participants_without_created_at = Participant.query.filter(
+            Participant.created_at == None
+        ).all()
 
-
-        participants_without_created_at = Participant.query.filter(Participant.created_at == None).all()
-        
         for participant in participants_without_created_at:
             participant.created_at = yesterday
-        
-
 
         for question_content in initial_questions:
             existing_question = Question.query.filter_by(
